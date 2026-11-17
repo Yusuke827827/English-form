@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ANALYSIS_SCHEMA,
   addVocab,
@@ -238,14 +238,38 @@ describe('analyze / lookupWord', () => {
     setEngineMode('auto')
   })
 
+  // 無料のサービスにつながらない状態にする（テストがネットにつながるかどうかで結果が変わらないように）
+  const offline = () => vi.stubGlobal('fetch', () => Promise.reject(new TypeError('offline')))
+  afterEach(() => vi.unstubAllGlobals())
+
   it('「自動」のときは、キーが無ければ無料の解析に切り替えて理由を残す（ネットが無ければ端末の中で）', async () => {
+    offline()
     const a = await analyze('en-ja', 'She is a doctor.')
     expect(a.engine).toBe('local')
     expect(lastFallback).toBe('no-key')
     expect(a.sentences[0]).toMatchObject({ pattern: 'SVC', explanation: expect.stringContaining('第2文型') })
   })
 
+  it('無料の解析サービスが答えたら、その結果で S・V・O・C と訳を付ける', async () => {
+    const row = (id: number, form: string, lemma: string, upos: string, head: number, rel: string, noSpace = false) =>
+      [id, form, lemma, upos, '_', '_', head, rel, '_', noSpace ? 'SpaceAfter=No' : '_'].join('\t')
+    const conllu = [row(1, 'Birds', 'bird', 'NOUN', 2, 'nsubj'), row(2, 'sing', 'sing', 'VERB', 0, 'root', true), row(3, '.', '.', 'PUNCT', 2, 'punct'), '', ''].join('\n')
+    const urls: string[] = []
+    vi.stubGlobal('fetch', async (url: string) => {
+      urls.push(String(url))
+      if (String(url).includes('lindat')) return new Response(JSON.stringify({ result: conllu }))
+      if (String(url).includes('mymemory')) return new Response(JSON.stringify({ responseStatus: 200, responseData: { translatedText: '鳥が歌う。' } }))
+      throw new TypeError('offline')
+    })
+    const a = await analyze('en-ja', 'Birds sing.')
+    expect(a.engine).toBe('udpipe')
+    expect(a.sentences[0]).toMatchObject({ pattern: 'SV', ja: '鳥が歌う。', checked: true })
+    expect(a.sentences[0].parts.map((p) => p.role)).toEqual(['S', 'V'])
+    expect(urls.some((u) => u.includes('lindat'))).toBe(true)
+  })
+
   it('AI の無料枠が切れたら、無料の解析に切り替える。添削は AI が要る', async () => {
+    offline()
     const quota: Transport = { send: async () => { throw new StudyError('quota') } }
     const a = await analyze('en-ja', 'I like apples.', quota)
     expect(a.engine).toBe('local')
