@@ -95,12 +95,17 @@ export interface Sentence {
   checked: boolean
 }
 
+/** 解析した手段。gemini: Gemini API / udpipe: 無料の解析サービス / local: 端末の中の簡易解析 / manual: AI アプリにコピペ */
+export type Engine = 'gemini' | 'udpipe' | 'local' | 'manual'
+
 export interface Analysis {
   direction: Direction
   source: string
   sentences: Sentence[]
   model: string
   createdAt: number
+  /** 古い版の結果には無い（Gemini とみなす） */
+  engine?: Engine
 }
 
 // ---- AI に渡す返事の形（JSON スキーマ） ----

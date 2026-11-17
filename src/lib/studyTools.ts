@@ -6,7 +6,7 @@
 //   - 音読の採点（聞き取った語と英文の語を突き合わせる）
 //   - 共有用の画像に描くときの行の折り返し
 
-import { GRAMMAR, MAX_INPUT, type Analysis, type Direction, type Grammar, type Role, type Sentence, type VocabItem } from './study'
+import { GRAMMAR, MAX_INPUT, type Analysis, type Direction, type Engine, type Grammar, type Role, type Sentence, type VocabItem } from './study'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -63,6 +63,8 @@ export interface Material {
   readOk: number[]
   /** 最後に読んでいた文の番号 */
   last: number
+  /** 解析した手段（古い版の教材には無い） */
+  engine?: Engine
 }
 
 /** 音読の合格点 */
@@ -88,6 +90,7 @@ export function newMaterial(id: string, keys: string[], analyses: Analysis[], fo
     hard: [...new Set(sentences.flatMap((s) => (s.hard ?? []).map((h) => h.word.toLowerCase())))],
     readOk: [],
     last: 0,
+    engine: analyses[0]?.engine ?? 'gemini',
   }
 }
 

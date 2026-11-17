@@ -28,12 +28,13 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,mjs,css,html,svg,png,woff2}'],
-        globIgnores: ['tesseract/**', 'pdfjs/**'],
+        // 辞書（頭文字ごと、合わせて約 4.6MB）は、引いた文字だけを使ったときにキャッシュする
+        globIgnores: ['tesseract/**', 'pdfjs/**', 'dict/**'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         runtimeCaching: [
           {
             // 文字の読み取り（数 MB）と PDF の付属ファイルは、初めて使ったときにキャッシュする
-            urlPattern: ({ url }) => url.pathname.includes('/tesseract/') || url.pathname.includes('/pdfjs/'),
+            urlPattern: ({ url }) => url.pathname.includes('/tesseract/') || url.pathname.includes('/pdfjs/') || url.pathname.includes('/dict/'),
             handler: 'CacheFirst',
             options: { cacheName: 'local-engines', expiration: { maxEntries: 400 } },
           },

@@ -15,7 +15,8 @@ import {
   tokenize,
   type WordEntry,
 } from './study'
-import { StudyError, analyze, lookupWord, rankModels, setApiKey, setModel, todayUsage, type Transport } from './studyAi'
+import { StudyError, analyze, lastFallback, lookupWord, rankModels, setApiKey, setEngineMode, setModel, todayUsage, type Transport } from './studyAi'
+import { extractJson, importManualAnalysis, manualAnalysisPrompt, manualQuizPrompt } from './free'
 
 // テストは Node で動くので、ブラウザの localStorage の代わりを置く
 if (typeof globalThis.localStorage === 'undefined') {
@@ -230,9 +231,29 @@ describe('analyze / lookupWord', () => {
     setApiKey('')
   })
 
-  it('API キーが無ければ送らずに知らせる', async () => {
+  it('「AI だけ」のときは、API キーが無ければ送らずに知らせる', async () => {
+    setEngineMode('ai')
     await expect(analyze('en-ja', 'a (6)')).rejects.toBeInstanceOf(StudyError)
     await expect(analyze('en-ja', 'a (6)')).rejects.toMatchObject({ kind: 'no-key' })
+    setEngineMode('auto')
+  })
+
+  it('「自動」のときは、キーが無ければ無料の解析に切り替えて理由を残す（ネットが無ければ端末の中で）', async () => {
+    const a = await analyze('en-ja', 'She is a doctor.')
+    expect(a.engine).toBe('local')
+    expect(lastFallback).toBe('no-key')
+    expect(a.sentences[0]).toMatchObject({ pattern: 'SVC', explanation: expect.stringContaining('第2文型') })
+  })
+
+  it('AI の無料枠が切れたら、無料の解析に切り替える。添削は AI が要る', async () => {
+    const quota: Transport = { send: async () => { throw new StudyError('quota') } }
+    const a = await analyze('en-ja', 'I like apples.', quota)
+    expect(a.engine).toBe('local')
+    expect(lastFallback).toBe('quota')
+    await expect(analyze('fix', 'I likes apples.', quota)).rejects.toMatchObject({ kind: 'quota' })
+    setEngineMode('free')
+    await expect(analyze('fix', 'I likes apples.')).rejects.toMatchObject({ kind: 'needs-ai' })
+    setEngineMode('auto')
   })
 
   it('単語を調べて保存する', async () => {
@@ -259,5 +280,24 @@ describe('rankModels', () => {
       { name: 'models/imagen-4', supportedActions: ['predict'] },
     ])
     expect(list).toEqual(['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.6-flash', 'gemini-2.5-pro'])
+  })
+})
+
+describe('AI アプリへのコピペ', () => {
+  it('指示文に、答えの形と元の文を入れる', () => {
+    const p = manualAnalysisPrompt('en-ja', ' He told me. ')
+    expect(p).toContain('exactly as written')
+    expect(p).toContain('"sentences"')
+    expect(p.endsWith('Input:\nHe told me.')).toBe(true)
+    expect(manualQuizPrompt(['A.'])).toContain('[0] A.')
+  })
+  it('答えのまわりの説明やコードの囲みを外して読む', () => {
+    const json = JSON.stringify(reply)
+    expect(extractJson('はい、どうぞ。\n```json\n' + json + '\n```\n以上です')).toBe(json)
+    expect(extractJson('Here: ' + json + ' thanks')).toBe(json)
+    const a = importManualAnalysis('en-ja', 'He told me that she was busy.', '```' + json + '```')
+    expect(a.engine).toBe('manual')
+    expect(a.sentences[0].checked).toBe(true)
+    expect(() => importManualAnalysis('en-ja', 'x', 'すみません、できません')).toThrow()
   })
 })

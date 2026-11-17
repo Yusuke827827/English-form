@@ -7,7 +7,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { t } from '../lib/i18n'
 import { readFileText } from '../lib/files'
 import { GRAMMAR, addVocab, vocabId, type Analysis, type Direction, type Grammar, type Sentence } from '../lib/study'
-import { createMaterial, getApiKey, loadAnalyses, loadMaterials, lookupWord, saveMaterials } from '../lib/studyAi'
+import { manualAnalysisPrompt } from '../lib/free'
+import { createMaterial, createMaterialFromReply, getApiKey, getEngineMode, lastFallback, loadAnalyses, loadMaterials, lookupWord, saveMaterials } from '../lib/studyAi'
+import type { Engine } from '../lib/study'
+import { ManualSheet } from './Manual'
 import { dueItems, folders, grammarCounts, recordReading, sentencesOf, updateMaterial, vocabProgress, type Material } from '../lib/studyTools'
 import { ConfirmDialog, formatDate, go, Icon, toast } from './common'
 import { FlowView, ReadAloudSheet, shareSentence } from './StudyFlow'
@@ -30,6 +33,19 @@ export function useMaterials(): [Material[] | null, (next: Material[]) => void] 
   return [list, save]
 }
 
+export function engineLabel(e: Engine | undefined): string {
+  switch (e) {
+    case 'udpipe':
+      return t('無料の解析')
+    case 'local':
+      return t('簡易解析（端末内）')
+    case 'manual':
+      return t('AI アプリ')
+    default:
+      return 'Gemini'
+  }
+}
+
 function modeLabel(d: Direction): string {
   return d === 'en-ja' ? t('英語 → 日本語') : d === 'ja-en' ? t('日本語 → 英語') : t('英作文の添削')
 }
@@ -46,6 +62,7 @@ export function Study() {
   const [shelf, setShelf] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
   const photoRef = useRef<HTMLInputElement>(null)
+  const [manual, setManual] = useState(false)
 
   const run = async () => {
     setErr(null)
@@ -56,6 +73,16 @@ export function Study() {
         onProgress: (done, total) => total > 1 && setBusy(t('解析中… {done} / {total}', { done: Math.min(done + 1, total), total })),
       })
       setText('')
+      if (lastFallback)
+        toast(
+          lastFallback === 'no-key'
+            ? t('AI のキーが無いので、無料の解析で作りました')
+            : lastFallback === 'quota'
+              ? t('AI の今日の無料枠を使い切ったので、無料の解析で作りました')
+              : lastFallback === 'auth'
+                ? t('AI のキーが正しくないので、無料の解析で作りました。「設定」でキーを確かめてください')
+                : t('AI が使えなかったので、無料の解析で作りました'),
+        )
       go(`/m/${m.id}`)
     } catch (e) {
       setErr(errorText(e))
@@ -96,9 +123,9 @@ export function Study() {
           </button>
         )}
       </header>
-      {!getApiKey() && (
-        <button className="notice warn study-link" style={{ width: '100%', marginBottom: 12 }} onClick={() => go('/settings')}>
-          {t('はじめに「設定」で、無料の Gemini API キーを入れてください。')}
+      {!getApiKey() && getEngineMode() !== 'free' && (
+        <button className="notice study-link" style={{ width: '100%', marginBottom: 12 }} onClick={() => go('/settings')}>
+          {t('キーが無くても無料の解析で使えます。訳や説明を詳しくするには「設定」で無料の Gemini キーを入れてください。')}
         </button>
       )}
 
@@ -153,8 +180,25 @@ export function Study() {
           <Icon name="bolt" />
           {busy ?? (direction === 'fix' ? t('添削して教材にする') : t('解析して教材にする'))}
         </button>
+        <button className="btn small" disabled={!!busy || !text.trim()} onClick={() => setManual(true)}>
+          {t('AI アプリで（コピペ）')}
+        </button>
         {err && <div className="notice error">{err}</div>}
       </div>
+
+      {manual && (
+        <ManualSheet
+          title={t('AI アプリで解析する')}
+          prompt={manualAnalysisPrompt(direction, text)}
+          onClose={() => setManual(false)}
+          onImport={async (reply) => {
+            const m = await createMaterialFromReply(direction, text, reply, folder)
+            setText('')
+            setManual(false)
+            go(`/m/${m.id}`)
+          }}
+        />
+      )}
 
       <div className="row" style={{ marginTop: 20 }}>
         <div className="section-title grow" style={{ margin: 0 }}>
@@ -186,7 +230,9 @@ export function Study() {
             <button key={m.id} className="card study-material" onClick={() => go(`/m/${m.id}`)}>
               <div className="row">
                 {m.folder && <span className="study-chip">{m.folder}</span>}
-                <span className="small muted">{modeLabel(m.direction)}</span>
+                <span className="small muted">
+                  {modeLabel(m.direction)} · {engineLabel(m.engine)}
+                </span>
                 <div className="grow" />
                 {m.last > 0 && m.last < m.count - 1 && <span className="study-chip study-continue">{t('続き {n}文目から', { n: m.last + 1 })}</span>}
               </div>
@@ -251,6 +297,7 @@ export function MaterialView({ id }: { id: string }) {
   const [vocab, saveVocab] = useVocab()
   const [renaming, setRenaming] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [redo, setRedo] = useState(false)
   const m = materials?.find((x) => x.id === id)
   const sentences = useMemo(() => sentencesOf(analyses ?? []), [analyses])
   const indexOf = (s: Sentence) => sentences.indexOf(s)
@@ -336,6 +383,14 @@ export function MaterialView({ id }: { id: string }) {
           </div>
         </>
       )}
+      {(m.engine === 'udpipe' || m.engine === 'local') && (
+        <div className="notice small" style={{ marginTop: 10 }}>
+          {m.engine === 'local' ? t('端末の中の簡易解析で作った教材です。複雑な文では印がずれることがあります。') : t('無料の解析サービスで作った教材です。訳や説明は少なめです。')}{' '}
+          <button className="study-link" style={{ display: 'inline', padding: 0 }} onClick={() => setRedo(true)}>
+            {t('AI アプリで解析し直す（コピペ）')}
+          </button>
+        </div>
+      )}
       <div className="row wrap" style={{ margin: '12px 0' }}>
         <button className="btn primary" onClick={() => go(`/quiz/${id}`)}>
           <Icon name="quiz" />
@@ -370,6 +425,21 @@ export function MaterialView({ id }: { id: string }) {
           onScore={(score) => {
             const i = indexOf(sa.reading!)
             if (i >= 0) saveList(updateMaterial(materials!, id, (x) => recordReading(x, i, score)))
+          }}
+        />
+      )}
+      {redo && (
+        <ManualSheet
+          title={t('AI アプリで解析し直す')}
+          prompt={manualAnalysisPrompt(m.direction, analyses.map((a) => a.source).join('\n'))}
+          onClose={() => setRedo(false)}
+          onImport={async (reply) => {
+            const n = await createMaterialFromReply(m.direction, analyses.map((a) => a.source).join('\n'), reply, m.folder)
+            // 新しい教材に置き換える（古い方は本棚から外す）
+            const list = await loadMaterials()
+            await saveMaterials(list.filter((x) => x.id !== id))
+            setRedo(false)
+            go(`/m/${n.id}`)
           }}
         />
       )}

@@ -25,11 +25,16 @@ import {
   type WordEntry,
 } from './study'
 import { newMaterial, putMaterial, sentencesOf, splitForAnalysis, type Material } from './studyTools'
+import { freeAnalyze, importManualAnalysis, importManualQuiz } from './free'
 import { QUIZ_SCHEMA, QUIZ_SYSTEM, addAnswers, parseQuiz, quizRequestText, type Answer, type Quiz } from './studyQuiz'
 
 const KEY_STORE = 'eigo.gemini.apiKey'
 const MODEL_STORE = 'eigo.gemini.model'
 const USAGE_STORE = 'eigo.gemini.usage'
+const MODE_STORE = 'eigo.engine'
+
+/** 解析のしかた。auto: AI を使い、使えないときは無料の解析 / ai: AI だけ / free: 無料の解析だけ（AI を使わない） */
+export type EngineMode = 'auto' | 'ai' | 'free'
 
 function ls(): Storage | null {
   try {
@@ -62,6 +67,15 @@ export function setModel(m: string) {
   else ls()?.removeItem(MODEL_STORE)
 }
 
+export function getEngineMode(): EngineMode {
+  const m = ls()?.getItem(MODE_STORE)
+  return m === 'ai' || m === 'free' ? m : 'auto'
+}
+
+export function setEngineMode(m: EngineMode) {
+  ls()?.setItem(MODE_STORE, m)
+}
+
 /** 今日 AI を使った回数（無料枠の目安を見るため。日付が変わったら 0 から） */
 export function todayUsage(now = new Date()): number {
   try {
@@ -77,7 +91,7 @@ function countUsage(now = new Date()) {
 }
 
 /** 画面に出す失敗の種類 */
-export type StudyErrorKind = 'no-key' | 'auth' | 'quota' | 'rate' | 'network' | 'refusal' | 'too-long' | 'bad-json' | 'no-model' | 'other'
+export type StudyErrorKind = 'no-key' | 'auth' | 'quota' | 'rate' | 'network' | 'refusal' | 'too-long' | 'bad-json' | 'no-model' | 'free-unavailable' | 'needs-ai' | 'other'
 
 export class StudyError extends Error {
   kind: StudyErrorKind
@@ -191,24 +205,66 @@ async function prepare(transport?: Transport): Promise<{ t: Transport; model: st
   return { t: geminiTransport(key), model: await resolveModel() }
 }
 
-/** 文を解析する。同じ文・同じモデルなら保存してある結果を返し、AI には送らない */
-export async function analyze(direction: Direction, text: string, transport?: Transport): Promise<Analysis> {
-  const source = analysisRequestText(text)
-  if (!source) throw new StudyError('other', 'empty')
-  if (source.length > MAX_INPUT) throw new StudyError('too-long')
+/** AI が使えないときに、無料の解析に切り替えてよい失敗 */
+const FALLBACK: StudyErrorKind[] = ['no-key', 'quota', 'rate', 'network', 'no-model', 'auth']
+
+/** 最後の解析で、AI の代わりに無料の解析を使った理由（画面で知らせる） */
+export let lastFallback: StudyErrorKind | null = null
+
+async function analyzeFree(direction: Direction, source: string): Promise<{ a: Analysis; key: string }> {
+  if (direction === 'fix') throw new StudyError('needs-ai')
+  const key = analysisCacheKey(direction, source, 'free')
+  const cached = await getKV<Analysis>(key).catch(() => undefined)
+  if (cached) return { a: cached, key }
+  let a: Analysis
+  try {
+    a = await freeAnalyze(direction, source)
+  } catch {
+    throw new StudyError('free-unavailable')
+  }
+  await setKV(key, a).catch(() => undefined)
+  return { a, key }
+}
+
+async function analyzeAi(direction: Direction, source: string, transport?: Transport): Promise<{ a: Analysis; key: string }> {
   const { t, model } = await prepare(transport)
   const key = analysisCacheKey(direction, source, model)
   const cached = await getKV<Analysis>(key).catch(() => undefined)
-  if (cached) return cached
+  if (cached) return { a: cached, key }
   const json = await call(t, model, systemPrompt(direction), source, ANALYSIS_SCHEMA as unknown as Record<string, unknown>, 16000)
   let a: Analysis
   try {
-    a = parseAnalysis(json, direction, source, model)
+    a = { ...parseAnalysis(json, direction, source, model), engine: 'gemini' }
   } catch (e) {
     throw toStudyError(e)
   }
   await setKV(key, a).catch(() => undefined)
-  return a
+  return { a, key }
+}
+
+/** 文を解析する（解析のしかたの設定に従う）。同じ文は保存してある結果を返し、送り直さない */
+export async function analyzeWithKey(direction: Direction, text: string, transport?: Transport): Promise<{ a: Analysis; key: string }> {
+  const source = analysisRequestText(text)
+  if (!source) throw new StudyError('other', 'empty')
+  if (source.length > MAX_INPUT) throw new StudyError('too-long')
+  const mode = getEngineMode()
+  lastFallback = null
+  if (mode === 'free') return analyzeFree(direction, source)
+  try {
+    return await analyzeAi(direction, source, transport)
+  } catch (e) {
+    const err = toStudyError(e)
+    if (mode === 'auto' && FALLBACK.includes(err.kind) && direction !== 'fix') {
+      const r = await analyzeFree(direction, source)
+      lastFallback = err.kind
+      return r
+    }
+    throw err
+  }
+}
+
+export async function analyze(direction: Direction, text: string, transport?: Transport): Promise<Analysis> {
+  return (await analyzeWithKey(direction, text, transport)).a
 }
 
 /** 単語を調べる（文の中での意味・ほかの訳・類義語・例文） */
@@ -260,17 +316,49 @@ export async function createMaterial(
   if (!pieces.length) throw new StudyError('other', 'empty')
   const analyses: Analysis[] = []
   const keys: string[] = []
+  let fellBack: StudyErrorKind | null = null
   for (let i = 0; i < pieces.length; i++) {
     opts.onProgress?.(i, pieces.length)
-    const a = await analyze(direction, pieces[i], opts.transport)
+    const { a, key } = await analyzeWithKey(direction, pieces[i], opts.transport)
+    fellBack ??= lastFallback
     analyses.push(a)
-    keys.push(analysisCacheKey(direction, pieces[i], a.model))
+    keys.push(key)
   }
   opts.onProgress?.(pieces.length, pieces.length)
-  const now = opts.now ?? Date.now()
-  const m = newMaterial(`m${now.toString(36)}${Math.random().toString(36).slice(2, 6)}`, keys, analyses, opts.folder ?? '', now)
+  lastFallback = fellBack
+  return saveNewMaterial(keys, analyses, opts.folder ?? '', opts.now)
+}
+
+async function saveNewMaterial(keys: string[], analyses: Analysis[], folder: string, at?: number): Promise<Material> {
+  const now = at ?? Date.now()
+  const m = newMaterial(`m${now.toString(36)}${Math.random().toString(36).slice(2, 6)}`, keys, analyses, folder, now)
   await saveMaterials(putMaterial(await loadMaterials(), m))
   return m
+}
+
+/** AI アプリの答え（コピペ）から教材を作る */
+export async function createMaterialFromReply(direction: Direction, text: string, reply: string, folder = ''): Promise<Material> {
+  let a: Analysis
+  try {
+    a = importManualAnalysis(direction, text, reply)
+  } catch {
+    throw new StudyError('bad-json')
+  }
+  const key = analysisCacheKey(direction, text.trim(), `manual-${Date.now()}`)
+  await setKV(key, a)
+  return saveNewMaterial([key], [a], folder)
+}
+
+/** AI アプリの答え（コピペ）から問題を作って保存する */
+export async function quizFromReply(m: Material, reply: string): Promise<Quiz> {
+  let q: Quiz
+  try {
+    q = importManualQuiz(m.id, m.count, reply)
+  } catch {
+    throw new StudyError('bad-json')
+  }
+  await setKV(quizKey(m.id), q)
+  return q
 }
 
 // ---- 設問と分析 ----
@@ -287,6 +375,7 @@ export async function loadQuiz(materialId: string): Promise<Quiz | undefined> {
 
 /** 教材から設問を作って保存する（作り直すときも同じ場所に上書きする） */
 export async function generateQuiz(m: Material, transport?: Transport): Promise<Quiz> {
+  if (getEngineMode() === 'free' && !transport) throw new StudyError('needs-ai')
   const sentences = sentencesOf(await loadAnalyses(m)).map((s) => s.en)
   if (!sentences.length) throw new StudyError('other', 'empty')
   const { t, model } = await prepare(transport)

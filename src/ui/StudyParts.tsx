@@ -5,7 +5,9 @@ import { getKV, setKV } from '../lib/db'
 import { t } from '../lib/i18n'
 import { speechAvailable, unlockSpeech, voicesFor } from '../lib/speech'
 import { EIKEN, MAX_INPUT, addVocab, tokenize, vocabId, type Direction, type Part, type Role, type Sentence, type VocabItem, type WordEntry } from '../lib/study'
-import { StudyError, lookupWord } from '../lib/studyAi'
+import { lookupOffline } from '../lib/dict'
+import { enrichWord } from '../lib/free'
+import { StudyError, getApiKey, getEngineMode, lookupWord } from '../lib/studyAi'
 import { go, Icon, toast } from './common'
 
 export const VOCAB_KEY = 'vocab'
@@ -34,6 +36,10 @@ export function errorText(e: unknown): string {
       return t('AI を使うには、「設定」で Gemini の API キーを入れてください。')
     case 'quota':
       return t('今日の無料枠を使い切りました。明日になるとまた使えます。')
+    case 'free-unavailable':
+      return t('無料の解析サービスにつながりませんでした。ネットの接続を確かめるか、「AI アプリで（コピペ）」を使ってください。')
+    case 'needs-ai':
+      return t('英作文の添削には AI が必要です。「設定」で Gemini のキーを入れるか、「AI アプリで（コピペ）」を使ってください。')
     case 'no-model':
       return t('使えるモデルが見つかりません。「設定」でキーを確かめてください。')
     case 'auth':
@@ -47,7 +53,7 @@ export function errorText(e: unknown): string {
     case 'too-long':
       return t('文が長すぎます。{n}字以内に分けてください。', { n: MAX_INPUT })
     case 'bad-json':
-      return t('AI の返事を読み取れませんでした。もう一度試してください。')
+      return t('AI の答えを読み取れませんでした。答えを全部コピーしたか確かめるか、もう一度試してください。')
     default:
       return t('うまくいきませんでした。もう一度試してください。')
   }
@@ -259,14 +265,20 @@ export function levelText(level: WordEntry['level']): string {
 export function WordBody({ entry }: { entry: WordEntry }) {
   return (
     <div className="stack study-entry">
-      <div>
-        <div className="small muted">{t('この文での意味')}</div>
-        <div style={{ fontSize: 18, fontWeight: 600 }}>{entry.sense}</div>
-        {entry.level && <div className="small muted">{levelText(entry.level)}</div>}
-      </div>
+      {(entry.sense || entry.level) && (
+        <div>
+          {entry.sense && (
+            <>
+              <div className="small muted">{t('この文での意味')}</div>
+              <div style={{ fontSize: 18, fontWeight: 600 }}>{entry.sense}</div>
+            </>
+          )}
+          {entry.level && <div className="small muted">{levelText(entry.level)}</div>}
+        </div>
+      )}
       {entry.meanings.length > 0 && (
         <div>
-          <div className="small muted">{t('ほかの訳')}</div>
+          <div className="small muted">{entry.sense ? t('ほかの訳') : t('意味')}</div>
           <ul className="study-list">
             {entry.meanings.map((m, i) => (
               <li key={i}>
@@ -306,15 +318,47 @@ export function WordBody({ entry }: { entry: WordEntry }) {
   )
 }
 
-/** 単語の説明（下から出るシート） */
+/** 単語の説明（下から出るシート）。
+ * まず端末の辞書（無料・回数の制限なし）で出し、無料の英英辞書と類義語のサービスで足す。
+ * 文の中での意味や類義語のちがいは、「AI で詳しく」で Gemini に聞く */
 export function WordSheet(props: { word: string; sentence: string; onClose: () => void; vocab: VocabItem[]; onSave: (list: VocabItem[]) => void }) {
   const [entry, setEntry] = useState<WordEntry | null>(null)
+  const [state, setState] = useState<'loading' | 'ready' | 'missing'>('loading')
+  const [ai, setAi] = useState<'idle' | 'busy' | 'done'>('idle')
   const [err, setErr] = useState<string | null>(null)
+  const canAi = !!getApiKey() && getEngineMode() !== 'free'
+
   useEffect(() => {
-    lookupWord(props.word, props.sentence)
-      .then(setEntry)
-      .catch((e) => setErr(errorText(e)))
+    let alive = true
+    lookupOffline(props.word, props.sentence)
+      .then(async (e) => {
+        if (!alive) return
+        if (!e) return setState('missing')
+        setEntry(e)
+        setState('ready')
+        const more = await enrichWord(e).catch(() => e)
+        // AI の結果に置き換わっていなければ、足した情報を出す
+        if (alive) setEntry((cur) => (cur === e ? more : cur))
+      })
+      .catch(() => alive && setState('missing'))
+    return () => {
+      alive = false
+    }
   }, [props.word, props.sentence])
+
+  const askAi = async () => {
+    setAi('busy')
+    setErr(null)
+    try {
+      setEntry(await lookupWord(props.word, props.sentence))
+      setState('ready')
+      setAi('done')
+    } catch (e) {
+      setErr(errorText(e))
+      setAi('idle')
+    }
+  }
+
   const saved = entry && props.vocab.some((v) => v.id === vocabId(entry.lemma))
   return (
     <>
@@ -334,9 +378,16 @@ export function WordSheet(props: { word: string; sentence: string; onClose: () =
             <Icon name="close" />
           </button>
         </div>
-        {err && <div className="notice error">{err}</div>}
-        {!entry && !err && <div className="muted">{t('調べています…')}</div>}
+        {state === 'loading' && <div className="muted">{t('調べています…')}</div>}
+        {state === 'missing' && !entry && <div className="muted">{t('辞書に見つかりませんでした。')}</div>}
         {entry && <WordBody entry={entry} />}
+        {canAi && ai !== 'done' && (
+          <button className="btn small" disabled={ai === 'busy'} onClick={askAi}>
+            <Icon name="bolt" />
+            {ai === 'busy' ? t('調べています…') : t('AI で詳しく（文の中の意味・類義語のちがい）')}
+          </button>
+        )}
+        {err && <div className="notice error">{err}</div>}
         {entry && (
           <button
             className={`btn ${saved ? '' : 'primary'}`}
@@ -349,6 +400,7 @@ export function WordSheet(props: { word: string; sentence: string; onClose: () =
             {saved ? t('単語帳の説明を新しくする') : t('単語帳に入れる')}
           </button>
         )}
+        <div className="small muted">{t('辞書：EJDict（パブリックドメイン）・NGSL（CC BY-SA 4.0）。難しさは目安です。')}</div>
       </div>
     </>
   )

@@ -1076,3 +1076,9 @@ button.study-chip {
   background: color-mix(in srgb, var(--role-O) 16%, transparent);
   color: var(--role-O);
 }
+.study-prompt {
+  width: 100%;
+  font-size: 13px;
+  font-family: ui-monospace, Menlo, monospace;
+  margin-top: 6px;
+}

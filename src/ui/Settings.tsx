@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { allKV, setKV } from '../lib/db'
 import { setUiLang, t, uiLang, type UiLang } from '../lib/i18n'
-import { getApiKey, getModel, listModels, setApiKey, setModel, todayUsage } from '../lib/studyAi'
+import { getApiKey, getEngineMode, getModel, listModels, setApiKey, setEngineMode, setModel, todayUsage, type EngineMode } from '../lib/studyAi'
 import { toast } from './common'
 import { errorText } from './StudyParts'
 
@@ -15,6 +15,7 @@ export function Settings() {
   const [models, setModels] = useState<string[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [lang, setLang] = useState<UiLang>(uiLang())
+  const [mode, setMode] = useState<EngineMode>(getEngineMode())
   const [has, setHas] = useState(!!getApiKey())
 
   const check = async () => {
@@ -61,6 +62,40 @@ export function Settings() {
       <header className="topbar" role="none">
         <h1>{t('設定')}</h1>
       </header>
+
+      <div className="section-title">{t('解析のしかた')}</div>
+      <div className="card stack">
+        <div className="segmented" role="group" aria-label={t('解析のしかた')}>
+          {(
+            [
+              ['auto', t('自動（おすすめ）')],
+              ['ai', t('AI だけ')],
+              ['free', t('無料の解析だけ')],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              aria-pressed={mode === k}
+              onClick={() => {
+                setEngineMode(k)
+                setMode(k)
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="small muted" style={{ margin: 0 }}>
+          {mode === 'auto'
+            ? t('Gemini で解析し、キーが無いとき・今日の無料枠を使い切ったとき・つながらないときは、無料の解析（UDPipe）に切り替えます。それも使えないときは端末の中で簡易に解析します。')
+            : mode === 'ai'
+              ? t('いつも Gemini で解析します。使えないときはエラーになります。')
+              : t('AI を使いません。構造は無料の解析（UDPipe）か端末の中の簡易解析、訳は無料の翻訳（MyMemory）です。英作文の添削と問題づくりは「AI アプリで（コピペ）」を使います。')}
+        </p>
+        <p className="small muted" style={{ margin: 0 }}>
+          {t('単語の意味はいつも端末の中の辞書（EJDict・NGSL）で引くので、AI の回数を使いません。')}
+        </p>
+      </div>
 
       <div className="section-title">{t('AI（無料）')}</div>
       <div className="card stack">

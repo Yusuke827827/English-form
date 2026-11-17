@@ -4,7 +4,9 @@
 import { useEffect, useState } from 'react'
 import { t } from '../lib/i18n'
 import type { Sentence } from '../lib/study'
-import { generateQuiz, loadAnalyses, loadAnswers, loadQuiz, saveAnswers } from '../lib/studyAi'
+import { manualQuizPrompt } from '../lib/free'
+import { generateQuiz, loadAnalyses, loadAnswers, loadQuiz, quizFromReply, saveAnswers } from '../lib/studyAi'
+import { ManualSheet } from './Manual'
 import { SKILL_GRAMMAR, SKILL_NOTES, overall, skillStats, type Answer, type Question, type Quiz, type Skill, type SkillState } from '../lib/studyQuiz'
 import { dueItems, sentencesOf } from '../lib/studyTools'
 import { go, Icon } from './common'
@@ -38,6 +40,7 @@ export function QuizView({ id }: { id: string }) {
   const [i, setI] = useState(0)
   const [picked, setPicked] = useState<number | null>(null)
   const [results, setResults] = useState<boolean[]>([])
+  const [manual, setManual] = useState(false)
 
   useEffect(() => {
     loadQuiz(id).then((q) => setQuiz(q ?? null))
@@ -106,6 +109,9 @@ export function QuizView({ id }: { id: string }) {
           <button className="btn primary" disabled={busy || !m} onClick={make}>
             <Icon name="bolt" />
             {busy ? t('問題を作っています…') : t('問題を作る')}
+          </button>
+          <button className="btn small" disabled={!m || !sentences.length} onClick={() => setManual(true)}>
+            {t('AI アプリで問題を作る（コピペ）')}
           </button>
           {err && <div className="notice error">{err}</div>}
         </div>
@@ -192,6 +198,18 @@ export function QuizView({ id }: { id: string }) {
           </div>
           {err && <div className="notice error">{err}</div>}
         </div>
+      )}
+      {manual && m && (
+        <ManualSheet
+          title={t('AI アプリで問題を作る')}
+          prompt={manualQuizPrompt(sentences.map((s) => s.en))}
+          onClose={() => setManual(false)}
+          onImport={async (reply) => {
+            setQuiz(await quizFromReply(m, reply))
+            restart()
+            setManual(false)
+          }}
+        />
       )}
     </div>
   )
