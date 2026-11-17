@@ -1,0 +1,1078 @@
+/* 見た目は iPhone の標準アプリ（設定・ブック）に合わせる。
+   地は薄い灰色、項目は白い角丸の面に入れ、線は髪の毛ほどの細さにする。強調色は主な操作と選択中の印だけに使う */
+:root {
+  --bg: #f2f2f7;
+  --surface: #ffffff;
+  --surface-2: rgba(118, 118, 128, 0.12);
+  --text: #1c1c1e;
+  --muted: #6e6e73;
+  --line: rgba(60, 60, 67, 0.18);
+  /* 白地に対して文字の明るさの差が 4.5 倍以上になる濃さ（WCAG の AA） */
+  --accent: #a9412c;
+  --accent-text: #ffffff;
+  --danger: #e5383b;
+  --ok: #248a3d;
+  --switch-on: #34c759;
+  --radius: 12px;
+  --shadow: none;
+  --seg-on: #ffffff;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic UI', Meiryo, sans-serif;
+  --font-mincho: 'Hiragino Mincho ProN', 'YuMincho', 'Yu Mincho', 'Noto Serif JP', 'BIZ UDPMincho', serif;
+  --font-gothic: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic', 'BIZ UDPGothic', Meiryo, sans-serif;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --surface-2: rgba(118, 118, 128, 0.24);
+    --text: #f5f5f7;
+    --muted: #98989f;
+    --line: rgba(84, 84, 88, 0.55);
+    --accent: #e8735a;
+    /* 明るい強調色の上に白い文字は読みにくいので、塗ったボタンの文字は黒に近い色にする */
+    --accent-text: #1a0d09;
+    --danger: #ff453a;
+    --ok: #30d158;
+    --switch-on: #30d158;
+    --seg-on: #636366;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* ---------- 共通部品 ---------- */
+
+.screen {
+  min-height: 100%;
+  padding: calc(var(--safe-top) + 4px) 16px calc(var(--safe-bottom) + 40px);
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  margin: 0 -8px 4px;
+}
+
+/* 画面の題は、iPhone の「大きいタイトル」と同じ大きさ */
+.topbar h1 {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  margin: 0 0 0 8px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: none;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.btn.danger {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.btn.ghost {
+  background: transparent;
+}
+
+.btn.small {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 15px;
+  border-radius: 10px;
+}
+
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.icon-btn:active,
+.btn:active {
+  opacity: 0.55;
+}
+
+.icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wrap {
+  flex-wrap: wrap;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.stack > * + * {
+  margin-top: 12px;
+}
+
+.progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.progress > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+.notice {
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  font-size: 15px;
+}
+
+.notice.error {
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+
+.notice.warn {
+  background: color-mix(in srgb, #ff9f0a 14%, var(--surface));
+}
+
+.notice strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* iPhone の「セグメントコントロール」 */
+.segmented {
+  display: flex;
+  background: var(--surface-2);
+  border-radius: 9px;
+  padding: 2px;
+  gap: 0;
+  overflow-x: auto;
+}
+
+.segmented button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--seg-on);
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.12),
+    0 3px 1px rgba(0, 0, 0, 0.04);
+  font-weight: 600;
+}
+
+.field {
+  display: block;
+}
+
+.field > .label {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+  height: 32px;
+}
+
+input[type='number'],
+input[type='text'],
+input[type='password'],
+input[type='search'],
+textarea,
+select {
+  border: none;
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 8px 12px;
+  min-height: 40px;
+  width: 100%;
+  font-size: 16px; /* iOS のズームを防ぐ */
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: 0;
+}
+
+/* 切り替えは iPhone のスイッチの形にする（中身はふつうのチェックボックス） */
+.switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.switch input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  position: relative;
+  width: 51px;
+  height: 31px;
+  margin: 0;
+  border-radius: 16px;
+  background: rgba(120, 120, 128, 0.16);
+  transition: background 0.2s;
+  cursor: pointer;
+}
+
+.switch input::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.15),
+    0 3px 1px rgba(0, 0, 0, 0.06);
+  transition: transform 0.2s;
+}
+
+.switch input:checked {
+  background: var(--switch-on);
+}
+
+.switch input:checked::before {
+  transform: translateX(20px);
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+  margin: 26px 16px 7px;
+}
+
+/* ---------- ダイアログ ---------- */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+  padding-bottom: calc(var(--safe-bottom) + 16px);
+  animation: fade-in 0.2s ease-out;
+}
+
+.dialog {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 20px 18px 16px;
+  width: 100%;
+  max-width: 340px;
+  text-align: center;
+  animation: pop-in 0.22s ease-out;
+}
+
+.dialog h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.dialog p,
+.dialog > div {
+  font-size: 14px;
+}
+
+.dialog .actions {
+  display: flex;
+  gap: 8px;
+  justify-content: stretch;
+  margin-top: 16px;
+}
+
+.dialog .actions .btn {
+  flex: 1;
+}
+
+/* 下から出るシート。上に掴み手の線を出す */
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 86vh;
+  overflow-y: auto;
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 12px 12px 0 0;
+  padding: 22px 16px calc(var(--safe-bottom) + 20px);
+  z-index: 40;
+  max-width: 720px;
+  margin: 0 auto;
+  animation: sheet-up 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.sheet::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 36px;
+  height: 5px;
+  margin-left: -18px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text) 25%, transparent);
+}
+
+.sheet .card {
+  background: var(--surface);
+}
+
+/* シートの見出しの行: 題は太字、閉じるボタンは灰色の丸に × */
+.sheet > .row:first-child {
+  margin-bottom: 4px;
+}
+
+.sheet > .row:first-child > .grow {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+.sheet > .row:first-child > .icon-btn[aria-label] {
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.sheet > .row:first-child > .icon-btn .icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 3;
+}
+
+/* シートの中の設定は、項目ごとに白い面に入れる */
+.sheet.stack > .field,
+.sheet.stack > .switch,
+.sheet.stack > .row.wrap,
+.sheet.stack > .list {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.sheet.stack > .switch {
+  padding: 6px 16px;
+}
+
+.sheet.stack > .row.wrap > .field {
+  padding: 0;
+}
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  background: rgba(0, 0, 0, 0.3);
+  animation: fade-in 0.2s ease-out;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .sheet-backdrop,
+  .dialog,
+  .dialog-backdrop {
+    animation: none;
+  }
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--safe-bottom) + 28px);
+  background: rgba(28, 28, 30, 0.86);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 22px;
+  font-size: 15px;
+  font-weight: 500;
+  z-index: 60;
+  max-width: calc(100% - 32px);
+  animation: fade-in 0.2s ease-out;
+}
+
+/* 設定の説明文は、iPhone の設定の注記と同じく小さく詰めて組む */
+.card p.small.muted {
+  line-height: 1.5;
+}
+
+/* 暗い配色では、セグメントの選ばれた側を白にせず、地より少し明るい色にする（白地に白文字で読めなくなるため） */
+:root[data-theme='night'],
+:root[data-theme='aurora'],
+:root[data-theme='forest'],
+:root[data-theme='ocean'],
+:root[data-wallpaper='dark'] {
+  --seg-on: rgba(255, 255, 255, 0.24);
+  --switch-on: #30d158;
+}
+
+/* 一覧の行の下に添える小さな説明 */
+.row-sub {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-top: 1px;
+}
+
+.list.group button:has(.row-sub) {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.list.group button:disabled {
+  opacity: 0.45;
+}
+
+/* 文字を大きくしたとき（画面の幅が狭くなったとき）も、横にはみ出さないようにする */
+.btn {
+  white-space: normal;
+  text-align: center;
+}
+
+.goal-cal > * {
+  min-width: 0;
+}
+
+@media (max-width: 320px) {
+  .reader .r-top .icon-btn {
+    width: 36px;
+  }
+  .reader .r-title {
+    display: none;
+  }
+  .reader .r-top {
+    justify-content: space-between;
+  }
+}
+
+.bars {
+  gap: 2px;
+}
+
+.bars > div {
+  min-width: 0;
+}
+
+.bars > div > span {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* 再生ボタンの列は、狭い幅では少しずつ縮める */
+/* ---------- 画面の下のタブ ---------- */
+
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: space-around;
+  padding: 6px 8px calc(var(--safe-bottom) + 4px);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-top: 0.5px solid var(--line);
+}
+
+.tabbar button {
+  flex: 1;
+  max-width: 120px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 0;
+  min-height: 44px;
+}
+
+.tabbar button .icon {
+  width: 26px;
+  height: 26px;
+}
+
+.tabbar button.on {
+  color: var(--accent);
+}
+
+.screen.with-tabs {
+  padding-bottom: calc(var(--safe-bottom) + 96px);
+}
+
+input[type='search'].search {
+  min-height: 36px;
+}
+
+/* タブのある画面では、知らせをタブの上に出す */
+body:has(.tabbar) .toast {
+  bottom: calc(var(--safe-bottom) + 72px);
+}
+
+/* ---- 英語学習（Study.tsx） ---- */
+:root {
+  --role-S: #2b6cd9;
+  --role-V: #d6343c;
+  --role-O: #1e9152;
+  --role-C: #8b3fc6;
+  --role-M: #8a8a8e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --role-S: #6aa0ff;
+    --role-V: #ff6b70;
+    --role-O: #4fd08a;
+    --role-C: #c48bff;
+    --role-M: #a0a0a6;
+  }
+}
+.study-input {
+  margin-top: 12px;
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.5;
+}
+.study-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+.study-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+.study-chip.role-S { color: var(--role-S); }
+.study-chip.role-V { color: var(--role-V); }
+.study-chip.role-O { color: var(--role-O); }
+.study-chip.role-C { color: var(--role-C); }
+.study-chip.role-M { color: var(--role-M); }
+.study-pattern {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+.study-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 8px;
+  font-size: 19px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.study-part,
+.study-inner {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+.study-part > .study-part-text {
+  border-bottom: 3px solid var(--role-color, transparent);
+  padding-bottom: 2px;
+  text-align: center;
+}
+/* 節の中の要素を並べるときだけ横に並べる（ふつうの要素は文字の流れのまま。記号や数字が離れないように） */
+.study-part > .study-part-text.has-inner {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  justify-content: center;
+}
+.study-inner > .study-part-text {
+  border-bottom: 1.5px dashed var(--role-color, transparent);
+}
+.study-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--role-color, var(--muted));
+  min-height: 15px;
+  text-align: center;
+}
+.study-note {
+  display: block;
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 11px;
+}
+.role-S { --role-color: var(--role-S); }
+.role-V { --role-color: var(--role-V); }
+.role-O { --role-color: var(--role-O); }
+.role-C { --role-color: var(--role-C); }
+.role-M { --role-color: var(--role-M); }
+.study-word {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  border-radius: 4px;
+}
+.study-word:active {
+  background: var(--surface-2);
+}
+.study-ja {
+  font-size: 16px;
+}
+.study-alt,
+.study-list {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
+.study-list li + li {
+  margin-top: 6px;
+}
+.study-pos {
+  font-size: 12px;
+  color: var(--muted);
+}
+.study-settings {
+  margin-top: 16px;
+}
+.study-settings summary {
+  font-weight: 600;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.study-vocab-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  min-height: 36px;
+  width: 100%;
+}
+.study-badge {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--danger, #e5484d);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 20px;
+}
+.study-material {
+  display: block;
+  width: 100%;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.study-material.row {
+  display: flex;
+}
+.study-material-title {
+  font-weight: 700;
+  font-size: 17px;
+  margin: 6px 0 4px;
+  overflow-wrap: anywhere;
+}
+.study-material-head {
+  font-size: 22px;
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.study-continue {
+  color: var(--accent);
+}
+.study-num {
+  margin: 0 0 4px 4px;
+}
+.study-read-ok .study-sentence {
+  box-shadow: inset 4px 0 0 var(--role-O);
+}
+.study-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+button.study-chip {
+  border: none;
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 10px;
+  min-height: 30px;
+}
+.study-hard {
+  color: var(--text);
+}
+.study-actions .btn {
+  flex: 1 1 auto;
+}
+.study-fix del {
+  color: var(--role-V);
+}
+.study-fix ins {
+  color: var(--role-O);
+  text-decoration: none;
+  font-weight: 600;
+}
+.study-original {
+  font-size: 16px;
+  color: var(--muted);
+}
+.study-link {
+  border: none;
+  background: none;
+  padding: 0 4px 4px;
+  text-align: left;
+  color: var(--accent);
+}
+.study-flow {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--safe-top, 0px) + 8px) 16px calc(var(--safe-bottom, 0px) + 16px);
+  gap: 8px;
+}
+.study-flow-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+}
+.study-flow-unit {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+.study-flow-text {
+  font-size: clamp(28px, 8vw, 44px);
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  border-bottom: 4px solid var(--role-color, transparent);
+  padding-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+.study-flow-unit .study-label {
+  font-size: 15px;
+}
+.study-flow-end {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 18px;
+  padding-top: 24px;
+}
+.study-flow-controls {
+  gap: 6px;
+}
+.study-said {
+  color: var(--role-O);
+}
+.study-missed {
+  color: var(--role-V);
+  text-decoration: underline wavy;
+}
+.study-score {
+  font-size: 28px;
+  font-weight: 700;
+}
+.study-review-card {
+  width: 100%;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  gap: 12px;
+}
+.study-flash {
+  border: none;
+  color: inherit;
+  font: inherit;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.study-flash-word {
+  font-size: 36px;
+  font-weight: 700;
+}
+.study-review-buttons .btn {
+  min-height: 52px;
+}
+.study-q-prompt {
+  font-weight: 600;
+}
+.study-quote {
+  font-size: 18px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2);
+  border-radius: 6px;
+}
+.study-choice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  border: 2px solid transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  min-height: 52px;
+}
+.study-choice:disabled {
+  cursor: default;
+}
+.study-choice.correct {
+  border-color: var(--role-O);
+}
+.study-choice.wrong {
+  border-color: var(--role-V);
+}
+.study-choice-no {
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 1.2em;
+}
+.study-ok {
+  color: var(--role-O);
+}
+.study-ng {
+  color: var(--role-V);
+}
+.study-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.study-stats b {
+  font-size: 24px;
+}
+.study-skill-list {
+  padding: 0;
+}
+.study-skill + .study-skill {
+  border-top: 0.5px solid var(--line);
+}
+.study-skill-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 14px 16px;
+}
+.study-skill-body {
+  padding: 0 16px 14px;
+}
+.study-state {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+}
+.study-state.state-weak {
+  border: none;
+  background: color-mix(in srgb, var(--role-V) 16%, transparent);
+  color: var(--role-V);
+}
+.study-state.state-practice {
+  border: none;
+  background: color-mix(in srgb, #ff9f0a 18%, transparent);
+  color: #b26a00;
+}
+.study-state.state-good {
+  border: none;
+  background: color-mix(in srgb, var(--role-O) 16%, transparent);
+  color: var(--role-O);
+}

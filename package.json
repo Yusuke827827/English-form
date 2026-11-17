@@ -1,0 +1,37 @@
+{
+  "name": "eigo-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "assets": "node scripts/copy-assets.mjs",
+    "predev": "node scripts/copy-assets.mjs",
+    "dev": "vite --host",
+    "prebuild": "node scripts/copy-assets.mjs",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host",
+    "test": "vitest run",
+    "lint": "oxlint"
+  },
+  "dependencies": {
+    "@google/genai": "^3.4.0",
+    "idb": "^8.0.4",
+    "pdfjs-dist": "^6.5.438",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "fake-indexeddb": "^6.2.8",
+    "jsdom": "^31.0.1",
+    "oxlint": "^1.94.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.8",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.1.0"
+  }
+}
